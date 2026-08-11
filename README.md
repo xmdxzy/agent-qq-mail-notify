@@ -1,8 +1,8 @@
 # agent-qq-mail-notify
 
-> 当 **Codex / WorkBuddy** 等智能体完成任务后，通过 **QQ 邮箱 SMTP** 自动向你的收件箱发送一封完成通知邮件。
+> 当 **任意 AI 智能体**（如 Codex / WorkBuddy / Claude 等）完成任务后，通过 **QQ 邮箱 SMTP** 自动向你的收件箱发送一封完成通知邮件。
 
-一个轻量、跨平台、零外部依赖的通知方案。智能体在任务收尾时调用一段脚本即可发信，配置通过环境变量或本地 JSON 文件提供，触发词与执行逻辑见 [`docs/TRIGGERS.md`](docs/TRIGGERS.md)。
+一个轻量、跨平台、零外部依赖的通知方案。智能体在任务收尾时调用一段脚本即可发信，配置通过环境变量或本地 JSON 文件提供，触发词与执行逻辑见 [`docs/TRIGGERS.md`](docs/TRIGGERS.md)。**本方案不依赖任何特定智能体平台，可独立运行。**
 
 ---
 
@@ -13,7 +13,7 @@
 - ✅ **零依赖**：Python 版仅用标准库，无需 `pip install`
 - ✅ **清晰的触发词**：单次 / 持久 / 自检 / 关闭，见 [`docs/TRIGGERS.md`](docs/TRIGGERS.md)
 - ✅ **安全**：凭据不外泄、正文不含密钥、主题注入防护、通知失败不阻塞任务结果
-- ✅ **双智能体共存**：主题前缀 `[Codex]` / `[WorkBuddy]` 自动区分来源
+- ✅ **来源可区分**：自动主题前缀 `[Source] 任务完成：Summary`，`Source` 由调用方任意指定
 
 ---
 
@@ -22,14 +22,14 @@
 ```
 agent-qq-mail-notify/
 ├── scripts/
-│   ├── task-done-notify.ps1   # PowerShell Core / Windows PowerShell 版
+│   ├── task-done-notify.ps1   # PowerShell 版（Windows PowerShell / PowerShell 7）
 │   └── task-done-notify.py    # Python 3 跨平台版（仅标准库）
 ├── config/
 │   └── task-done-notify.example.json  # 配置模板
 ├── docs/
 │   └── TRIGGERS.md            # 触发词与执行逻辑规范
 ├── skill/
-│   └── SKILL.md               # 供 WorkBuddy/Codex 加载的 Skill
+│   └── SKILL.md               # 供智能体加载的 Skill（与平台解耦）
 ├── README.md
 ├── LICENSE
 └── .gitignore
@@ -43,7 +43,7 @@ agent-qq-mail-notify/
 
 1. 登录 QQ 邮箱网页版 → **设置 → 账户 → 开启 IMAP/SMTP 服务**。
 2. 按提示获取 **授权码**（不是 QQ 密码），记为 `<AUTH_CODE>`。
-3. 发件地址即你的 QQ 邮箱，如 `1191735766@qq.com`。
+3. 发件地址即你的 QQ 邮箱（在配置中以 `your-sender@qq.com` 占位）。
 
 ### 2. 写入配置（二选一）
 
@@ -60,35 +60,35 @@ cp config/task-done-notify.example.json scripts/task-done-notify.local.json
   "smtpServer": "smtp.qq.com",
   "smtpPort": 587,
   "enableSsl": true,
-  "smtpUser": "1191735766@qq.com",
+  "smtpUser": "your-sender@qq.com",
   "smtpPassword": "<AUTH_CODE>",
-  "from": "WorkBuddy 序策 <1191735766@qq.com>",
-  "to": "1181861399@qq.com",
-  "subject": "WorkBuddy task complete"
+  "from": "Agent Notifier <your-sender@qq.com>",
+  "to": "your-receiver@qq.com",
+  "subject": "Agent task complete"
 }
 ```
 
 **方式 B：环境变量（CI / 多机更方便）**
 
 ```bash
-export XUCE_NOTIFY_SMTP_SERVER=smtp.qq.com
-export XUCE_NOTIFY_SMTP_PORT=587
-export XUCE_NOTIFY_SMTP_USER=1191735766@qq.com
-export XUCE_NOTIFY_SMTP_PASSWORD=<AUTH_CODE>
-export XUCE_NOTIFY_FROM="WorkBuddy 序策 <1191735766@qq.com>"
-export XUCE_NOTIFY_TO=1181861399@qq.com
+export QQ_NOTIFY_SMTP_SERVER=smtp.qq.com
+export QQ_NOTIFY_SMTP_PORT=587
+export QQ_NOTIFY_SMTP_USER=your-sender@qq.com
+export QQ_NOTIFY_SMTP_PASSWORD=<AUTH_CODE>
+export QQ_NOTIFY_FROM="Agent Notifier <your-sender@qq.com>"
+export QQ_NOTIFY_TO=your-receiver@qq.com
 ```
 
-> 优先级：环境变量 `XUCE_NOTIFY_*` ＞ `CODEX_NOTIFY_*`（兼容旧方案）＞ `*.local.json`。
+> 优先级：环境变量 `QQ_NOTIFY_*` ＞ `*.local.json`。
 
 ### 3. 验证配置（不发信）
 
 ```bash
 # PowerShell
-powershell -NoProfile -File ./scripts/task-done-notify.ps1 -DryRun -Source "WorkBuddy" -Summary "测试"
+powershell -NoProfile -File ./scripts/task-done-notify.ps1 -DryRun -Source "Agent" -Summary "测试"
 
 # Python
-python3 ./scripts/task-done-notify.py --dry-run --source WorkBuddy --summary "测试"
+python3 ./scripts/task-done-notify.py --dry-run --source Agent --summary "测试"
 ```
 
 输出 JSON 含 `From / To / Subject / Source / HasPassword` 即配置就绪。
@@ -97,23 +97,19 @@ python3 ./scripts/task-done-notify.py --dry-run --source WorkBuddy --summary "�
 
 ```bash
 # PowerShell
-powershell -NoProfile -File ./scripts/task-done-notify.ps1 -Source "WorkBuddy" -Summary "生成周报" -Message "周报已生成：report.md"
+powershell -NoProfile -File ./scripts/task-done-notify.ps1 -Source "Agent" -Summary "生成周报" -Message "周报已生成：report.md"
 
 # Python
-python3 ./scripts/task-done-notify.py --source WorkBuddy --summary "生成周报" --message "周报已生成：report.md"
+python3 ./scripts/task-done-notify.py --source Agent --summary "生成周报" --message "周报已生成：report.md"
 ```
 
 ---
 
 ## 在智能体中集成
 
-### WorkBuddy
+将 `skill/SKILL.md` 作为 Skill 放入对应智能体的 skills 目录（例如 `~/.workbuddy/skills/agent-qq-mail-notify/` 或 Codex 的技能目录），智能体即可在识别到触发词时自动调用。触发词与执行逻辑见 [`docs/TRIGGERS.md`](docs/TRIGGERS.md)。
 
-将 `skill/SKILL.md` 作为 Skill 放入 `~/.workbuddy/skills/agent-qq-mail-notify/`，智能体即可在识别到触发词时自动调用。触发词与执行逻辑见 [`docs/TRIGGERS.md`](docs/TRIGGERS.md)。
-
-### Codex
-
-在 Codex 的 hooks / 指令中，于任务结束时检测用户是否要求通知，命中则调用本仓库脚本。可设置 `XUCE_NOTIFY_PERSISTENT=1` 开启持久通知。
+调用时通过 `--source`（或 `-Source`）传入当前智能体名称，即可在邮件主题中区分来源。
 
 ### 触发词速查
 
@@ -128,7 +124,7 @@ python3 ./scripts/task-done-notify.py --source WorkBuddy --summary "生成周报
 
 ## 安全说明
 
-- **凭据仅本机**：`*.local.json` 与 `XUCE_NOTIFY_SMTP_PASSWORD` 含授权码，已在 `.gitignore` 忽略，**切勿提交进仓库**。
+- **凭据仅本机**：`*.local.json` 与 `QQ_NOTIFY_SMTP_PASSWORD` 含授权码，已在 `.gitignore` 忽略，**切勿提交进仓库**。
 - **正文不泄露密钥**：通知邮件只含任务摘要、来源、完成时间、产物路径。
 - **注入防护**：主题与来源去除换行、截断到 150 字符。
 - **旁路副作用**：通知失败只提示，不影响任务结果返回。

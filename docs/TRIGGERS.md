@@ -1,6 +1,8 @@
 # 触发词与执行逻辑（Trigger Words & Execution Logic）
 
-本文件定义 **Agent 任务完成 QQ 邮箱通知** 的触发词与执行逻辑，供 Codex / WorkBuddy 等智能体在实现通知能力时遵循。配套脚本见 `scripts/`。
+本文件定义 **Agent 任务完成 QQ 邮箱通知** 的触发词与执行逻辑，供任意 AI 智能体（如 Codex / WorkBuddy / Claude 等）在实现通知能力时遵循。配套脚本见 `scripts/`。
+
+本方案不依赖任何特定智能体平台，可独立运行。
 
 ---
 
@@ -28,7 +30,7 @@
 | 中文 | `以后任务完成都发QQ邮件通知我` · `开启任务完成邮件通知` · `打开邮件提醒` |
 | 英文 | `always notify me by QQ email` · `enable email notifications` · `turn on task completion emails` |
 
-**执行效果**：在智能体记忆/配置中写入 `notify.persistent = true`（见第四节边界）。
+**执行效果**：在智能体记忆/配置中写入 `notify.persistent = true`（见第四节）。
 
 ### 3. 配置查询 / 自检
 
@@ -72,8 +74,8 @@
   │
   ▼
 [5] 发信流程：
-       a. 解析配置：环境变量 XUCE_NOTIFY_*  >  CODEX_NOTIFY_*  >  *.local.json
-       b. 构造载荷：Source=智能体名，Summary=任务短标题，Message=结果摘要+时间戳
+       a. 解析配置：环境变量 QQ_NOTIFY_*  >  *.local.json
+       b. 构造载荷：Source=智能体名（任意），Summary=任务短标题，Message=结果摘要+时间戳
        c. 未知配置时先 --dry-run 探测；配置就绪则正式发送
        d. 校验返回：成功 → 在最终回复中附一句"已发 QQ 邮件通知"；失败 → 仅提示，不阻塞结果
 ```
@@ -81,8 +83,8 @@
 ### 关键规则
 
 1. **永不阻塞任务结果**：通知是「旁路副作用」。无论通知成功或失败，都必须先把任务结果返回给用户。
-2. **配置缺失不报错**：若未配置 SMTP，智能体应提示用户如何配置（复制 `config/task-done-notify.example.json` 或设置 `XUCE_NOTIFY_SMTP_*`），而不是抛错中断。
-3. **主题前缀区分来源**：自动主题格式 `[Source] 任务完成：Summary`，`Source` 取 `Codex` / `WorkBuddy`，便于多智能体共存时区分。
+2. **配置缺失不报错**：若未配置 SMTP，智能体应提示用户如何配置（复制 `config/task-done-notify.example.json` 或设置 `QQ_NOTIFY_SMTP_*`），而不是抛错中断。
+3. **主题前缀区分来源**：自动主题格式 `[Source] 任务完成：Summary`，`Source` 由调用方任意指定，便于多智能体共存时区分。
 4. **正文不含敏感信息**：`Message` 只放任务摘要、来源、完成时间、产物路径，**不得包含 SMTP 密码、token、密钥**。
 5. **摘要做安全清洗**：`Summary` / `Source` 去除换行符，主题长度截断到 150 字符，防止 SMTP 注入。
 
@@ -93,13 +95,13 @@
 PowerShell 环境（Windows）：
 
 ```powershell
-powershell -NoProfile -File ./scripts/task-done-notify.ps1 -Source "WorkBuddy" -Summary "生成周报" -Message "周报已生成：report.md"
+powershell -NoProfile -File ./scripts/task-done-notify.ps1 -Source "Agent" -Summary "生成周报" -Message "周报已生成：report.md"
 ```
 
 Python 环境（macOS / Linux / 跨平台）：
 
 ```bash
-python3 ./scripts/task-done-notify.py --source WorkBuddy --summary "生成周报" --message "周报已生成：report.md"
+python3 ./scripts/task-done-notify.py --source Agent --summary "生成周报" --message "周报已生成：report.md"
 ```
 
 自检配置（不发信）：追加 `--dry-run` / `-DryRun`。
@@ -108,10 +110,11 @@ python3 ./scripts/task-done-notify.py --source WorkBuddy --summary "生成周报
 
 ## 四、持久化存储位置建议
 
-| 智能体 | 持久标志建议位置 |
-|--------|------------------|
-| WorkBuddy | `~/.workbuddy/MEMORY.md` 或会话级 `.workbuddy/memory/` 日志中记录 `notify.persistent=true` |
-| Codex | `~/.codex/` 下配置或环境变量 `XUCE_NOTIFY_PERSISTENT=1` |
-| 通用 | 任何智能体可读写的本地标记文件，如 `~/.agent-qq-mail-notify/persistent.flag` |
+持久标志仅影响「是否自动发信」，与 SMTP 凭据无关（凭据始终来自环境变量或 `*.local.json`）。
 
-> 持久化仅影响「是否自动发信」，**不改变** SMTP 凭据的存储位置（凭据始终来自环境变量或 `*.local.json`）。
+| 场景 | 持久标志建议位置 |
+|------|------------------|
+| 通用 | 本地标记文件，如 `~/.agent-qq-mail-notify/persistent.flag` |
+| 智能体记忆 | 任意智能体可读写的本地记忆 / 配置文件，记录 `notify.persistent=true` |
+
+> 持久化不改变 SMTP 凭据的存储位置（凭据始终来自环境变量或 `*.local.json`）。

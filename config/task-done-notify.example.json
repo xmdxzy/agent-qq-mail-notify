@@ -4,7 +4,7 @@
   "enableSsl": true,
   "smtpUser": "your-sender@qq.com",
   "smtpPassword": "your-qq-mail-authorization-code",
-  "from": "WorkBuddy 序策 <your-sender@qq.com>",
-  "to": "1181861399@qq.com",
-  "subject": "WorkBuddy task complete"
+  "from": "Agent Notifier <your-sender@qq.com>",
+  "to": "your-receiver@qq.com",
+  "subject": "Agent task complete"
 }

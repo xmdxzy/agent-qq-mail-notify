@@ -3,21 +3,22 @@
 """
 Agent 任务完成 QQ 邮箱通知脚本（Python，跨平台）。
 
-当 Codex / WorkBuddy 等智能体完成任务后调用本脚本，
+当任意 AI 智能体（如 Codex / WorkBuddy / Claude 等）完成任务后调用本脚本，
 通过 QQ 邮箱 SMTP（smtp.qq.com）向用户指定的收件箱发送一封完成通知邮件。
 
+本脚本不依赖任何特定智能体平台，可独立运行。
+
 配置优先级（从高到低）：
-  1. 环境变量 XUCE_NOTIFY_*（WorkBuddy/序策优先）
-  2. 环境变量 CODEX_NOTIFY_*（兼容 Codex 旧方案）
-  3. 配置文件 task-done-notify.local.json（默认：脚本同目录）
+  1. 环境变量 QQ_NOTIFY_*（推荐，便于多机 / CI）
+  2. 配置文件 task-done-notify.local.json（默认：脚本同目录）
 
 用法示例：
   # 真正发信
-  python3 task-done-notify.py --source WorkBuddy --summary "生成周报" \
+  python3 task-done-notify.py --source Agent --summary "生成周报" \
       --message "周报已生成：report.md"
 
   # 仅校验配置就绪（不真正发信）
-  python3 task-done-notify.py --dry-run --source WorkBuddy --summary "测试"
+  python3 task-done-notify.py --dry-run --source Agent --summary "测试"
 
 依赖：仅标准库（smtplib / ssl / email），无需 pip install。
 """
@@ -56,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Agent 任务完成 QQ 邮箱通知")
     p.add_argument("--message", help="邮件正文；省略时根据来源/摘要自动生成")
     p.add_argument("--subject", help="邮件主题；省略时自动拼成 [Source] 任务完成：Summary")
-    p.add_argument("--source", default="WorkBuddy", help="任务来源标识，如 Codex / WorkBuddy")
+    p.add_argument("--source", default="Agent", help="任务来源标识，任意字符串，如 Agent / Codex / WorkBuddy")
     p.add_argument("--summary", help="任务摘要（短标题）")
     p.add_argument("--config", help="配置文件路径（默认：脚本同目录 task-done-notify.local.json）")
     p.add_argument("--dry-run", action="store_true", help="只校验配置并输出邮件元信息，不真正发信")
@@ -70,30 +71,22 @@ def main() -> int:
     config_path = Path(args.config) if args.config else (script_dir / "task-done-notify.local.json")
     config = load_config(config_path)
 
-    # WorkBuddy/序策优先 XUCE_NOTIFY_*，并兼容 Codex 既有 CODEX_NOTIFY_*。
-    smtp_server = first_value(os.environ.get("XUCE_NOTIFY_SMTP_SERVER"),
-                              os.environ.get("CODEX_NOTIFY_SMTP_SERVER"), config.get("smtpServer"))
-    smtp_port = first_value(os.environ.get("XUCE_NOTIFY_SMTP_PORT"),
-                            os.environ.get("CODEX_NOTIFY_SMTP_PORT"), config.get("smtpPort"))
-    smtp_user = first_value(os.environ.get("XUCE_NOTIFY_SMTP_USER"),
-                            os.environ.get("CODEX_NOTIFY_SMTP_USER"), config.get("smtpUser"))
-    smtp_password = first_value(os.environ.get("XUCE_NOTIFY_SMTP_PASSWORD"),
-                                os.environ.get("CODEX_NOTIFY_SMTP_PASSWORD"), config.get("smtpPassword"))
-    from_addr = first_value(os.environ.get("XUCE_NOTIFY_FROM"),
-                            os.environ.get("CODEX_NOTIFY_FROM"), config.get("from"))
-    to_addr = first_value(os.environ.get("XUCE_NOTIFY_TO"),
-                          os.environ.get("CODEX_NOTIFY_TO"), config.get("to"), "1181861399@qq.com")
-    ssl_raw = first_value(os.environ.get("XUCE_NOTIFY_SMTP_SSL"),
-                          os.environ.get("CODEX_NOTIFY_SMTP_SSL"), config.get("enableSsl"))
+    # 环境变量 QQ_NOTIFY_* 优先，其次本地 JSON 配置。
+    smtp_server = first_value(os.environ.get("QQ_NOTIFY_SMTP_SERVER"), config.get("smtpServer"))
+    smtp_port = first_value(os.environ.get("QQ_NOTIFY_SMTP_PORT"), config.get("smtpPort"))
+    smtp_user = first_value(os.environ.get("QQ_NOTIFY_SMTP_USER"), config.get("smtpUser"))
+    smtp_password = first_value(os.environ.get("QQ_NOTIFY_SMTP_PASSWORD"), config.get("smtpPassword"))
+    from_addr = first_value(os.environ.get("QQ_NOTIFY_FROM"), config.get("from"))
+    to_addr = first_value(os.environ.get("QQ_NOTIFY_TO"), config.get("to"))
+    ssl_raw = first_value(os.environ.get("QQ_NOTIFY_SMTP_SSL"), config.get("enableSsl"))
 
-    clean_source = (args.source or "WorkBuddy").replace("\r", " ").replace("\n", " ").strip()
+    clean_source = (args.source or "Agent").replace("\r", " ").replace("\n", " ").strip()
     clean_summary = (args.summary or "").replace("\r", " ").replace("\n", " ").strip()
 
     default_subject = f"[{clean_source}] 任务完成：{clean_summary}" if clean_summary else f"[{clean_source}] 任务完成"
     resolved_subject = first_value(
         args.subject,
-        os.environ.get("XUCE_NOTIFY_SUBJECT"),
-        os.environ.get("CODEX_NOTIFY_SUBJECT"),
+        os.environ.get("QQ_NOTIFY_SUBJECT"),
         default_subject if clean_summary else None,
         config.get("subject"),
         default_subject,
@@ -127,7 +120,7 @@ def main() -> int:
     if missing:
         print("Email notification is not configured. Missing: " + ", ".join(missing) +
               ". Copy config/task-done-notify.example.json to task-done-notify.local.json "
-              "and set SMTP values, or use XUCE_NOTIFY_SMTP_* environment variables.",
+              "and set SMTP values, or use QQ_NOTIFY_SMTP_* environment variables.",
               file=sys.stderr)
         return 2
 
