@@ -1,0 +1,10 @@
+{
+  "smtpServer": "smtp.qq.com",
+  "smtpPort": 587,
+  "enableSsl": true,
+  "smtpUser": "your-sender@qq.com",
+  "smtpPassword": "your-qq-mail-authorization-code",
+  "from": "WorkBuddy 序策 <your-sender@qq.com>",
+  "to": "1181861399@qq.com",
+  "subject": "WorkBuddy task complete"
+}
