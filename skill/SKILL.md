@@ -5,7 +5,7 @@ description: 当任意 AI 智能体（如 Codex / WorkBuddy / Claude）完成任
 
 # Agent 任务完成 QQ 邮箱通知
 
-完成任务后，按用户意图用 QQ 邮箱发送一封完成通知邮件。配套脚本：`scripts/task-done-notify.ps1`（PowerShell）与 `scripts/task-done-notify.py`（Python，跨平台）。本技能与具体智能体平台解耦，任何能调用脚本的智能体均可使用。
+完成任务后，按用户意图用 QQ 邮箱发送一封完成通知邮件。本技能**自包含**：技能目录内已包含 `scripts/task-done-notify.ps1`（PowerShell）与 `scripts/task-done-notify.py`（Python，跨平台）两个通知脚本，以及 `config/task-done-notify.example.json` 配置模板。**调用脚本时以本 SKILL.md 所在目录为根，用相对路径 `../scripts/...` 引用**（scripts/ 与 skill/ 是同级目录），无需额外安装依赖。本技能与具体智能体平台解耦，任何能调用脚本的智能体均可使用。
 
 ## 触发词
 
@@ -30,19 +30,19 @@ description: 当任意 AI 智能体（如 Codex / WorkBuddy / Claude）完成任
    - 未知配置时先 `--dry-run` 探测；就绪则正式发送。
    - 成功 → 最终回复附「已发 QQ 邮件通知」；失败 → 仅提示，不阻塞结果。
 
-## 调用（按运行环境任选其一）
+## 调用（脚本在本技能目录的 `../scripts/` 下，按运行环境任选其一）
 
 PowerShell（Windows）：
 ```powershell
-powershell -NoProfile -File ./scripts/task-done-notify.ps1 -Source "Agent" -Summary "<任务短标题>" -Message "<结果摘要>"
+powershell -NoProfile -File ../scripts/task-done-notify.ps1 -Source "Agent" -Summary "<任务短标题>" -Message "<结果摘要>"
 ```
 
 Python（macOS / Linux / 跨平台）：
 ```bash
-python3 ./scripts/task-done-notify.py --source Agent --summary "<任务短标题>" --message "<结果摘要>"
+python3 ../scripts/task-done-notify.py --source Agent --summary "<任务短标题>" --message "<结果摘要>"
 ```
 
-自检（不发信）：追加 `-DryRun` / `--dry-run`。
+自检（不发信）：追加 `-DryRun` / `--dry-run`。缺配置时脚本退出码为 `2` 并提示缺失项，属正常行为，不要当作错误抛给用户。
 
 ## 安全边界（必须遵守）
 
