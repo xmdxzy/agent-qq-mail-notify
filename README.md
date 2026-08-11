@@ -23,7 +23,8 @@
 agent-qq-mail-notify/
 ├── scripts/
 │   ├── task-done-notify.ps1   # PowerShell 版（Windows PowerShell / PowerShell 7）
-│   └── task-done-notify.py    # Python 3 跨平台版（仅标准库）
+│   ├── task-done-notify.py    # Python 3 跨平台版（仅标准库）
+│   └── install-skill.py       # 一键把 skill 装进智能体（WorkBuddy/Codex/Claude/自定义）
 ├── config/
 │   └── task-done-notify.example.json  # 配置模板
 ├── docs/
@@ -110,11 +111,57 @@ python3 ./scripts/task-done-notify.py --source Agent --summary "生成周报" --
 
 ---
 
-## 在智能体中集成
+## 在智能体中集成（让 AI 自动发通知）
 
-将 `skill/SKILL.md` 作为 Skill 放入对应智能体的 skills 目录（例如 `~/.workbuddy/skills/agent-qq-mail-notify/` 或 Codex 的技能目录），智能体即可在识别到触发词时自动调用。触发词与执行逻辑见 [`docs/TRIGGERS.md`](docs/TRIGGERS.md)。
+把 `skill/` 装进你的智能体后，AI 就会在识别到触发词（如「完成后通知我」「检查通知配置」）时自动调用脚本发邮件。**装一次，到处可用。**
 
-调用时通过 `--source`（或 `-Source`）传入当前智能体名称，即可在邮件主题中区分来源。
+### 方式 A：一键安装（推荐）
+
+clone 项目后运行安装脚本（纯标准库，Windows / macOS / Linux 通用）：
+
+```bash
+git clone https://github.com/xmdxzy/agent-qq-mail-notify
+cd agent-qq-mail-notify
+
+# 交互式选择目标智能体
+python3 scripts/install-skill.py
+
+# 或直接指定目标：workbuddy / codex / claude / 自定义目录
+python3 scripts/install-skill.py --target workbuddy
+python3 scripts/install-skill.py --target codex
+python3 scripts/install-skill.py --target claude
+python3 scripts/install-skill.py --target ~/my-agent/skills
+```
+
+脚本会把 `skill/`、`scripts/`、`config/` 一起复制到目标位置（目录名固定为 `agent-qq-mail-notify`，技能**自包含**：SKILL.md 引用的通知脚本与配置模板都随之就位），并提示验证方法。
+
+### 方式 B：手动放置
+
+把 `skill/`、`scripts/`、`config/` 三个目录复制到对应智能体的 skills 目录下（保持 `agent-qq-mail-notify/<子目录>/` 结构，让技能自包含）：
+
+| 智能体 | skills 目录（替换 `<用户目录>`） |
+|--------|----------------------------------|
+| WorkBuddy（全局） | `<用户目录>/.workbuddy/skills/agent-qq-mail-notify/` |
+| WorkBuddy（项目） | `<项目>/.workbuddy/skills/agent-qq-mail-notify/` |
+| Codex CLI（全局） | `<用户目录>/.codex/skills/agent-qq-mail-notify/` |
+| Codex CLI（项目） | `<项目>/.codex/skills/agent-qq-mail-notify/` |
+| Claude Code（全局） | `<用户目录>/.claude/skills/agent-qq-mail-notify/` |
+
+> 目录内必须含 `SKILL.md`（含 `name` / `description` 元信息），智能体靠它识别加载。
+
+### 装好后如何确认生效
+
+1. **新开一个会话**（让智能体重新扫描 skills 目录）。
+2. 对智能体说：「**检查通知配置**」或「**测试一下邮件通知**」。
+3. 如果它调用脚本做 `--dry-run` 自检并回显配置 JSON → **skill 已生效**；
+   如果答非所问 → 检查目录路径与文件名是否为 `SKILL.md`。
+4. 本地快速自检（不经智能体，直接验证脚本本身可用）：
+
+```bash
+python3 scripts/task-done-notify.py --dry-run --source Agent --summary 安装自检
+```
+
+> 未配置 SMTP 前，「检查通知配置」只会提示缺失项（退出码 2），**不会发信**，属正常行为。
 
 ### 触发词速查
 
