@@ -30,6 +30,11 @@ agent-qq-mail-notify/
 │   └── TRIGGERS.md            # 触发词与执行逻辑规范
 ├── skill/
 │   └── SKILL.md               # 供智能体加载的 Skill（与平台解耦）
+├── tests/
+│   └── test_mock_smtp.py      # 端到端功能测试（纯标准库 mock SMTP，无需真实凭据/联网）
+├── .github/
+│   └── workflows/
+│       └── test.yml           # 提交 / PR 时自动跑测试（fork 也能用）
 ├── README.md
 ├── LICENSE
 └── .gitignore
@@ -128,6 +133,51 @@ python3 ./scripts/task-done-notify.py --source Agent --summary "生成周报" --
 - **正文不泄露密钥**：通知邮件只含任务摘要、来源、完成时间、产物路径。
 - **注入防护**：主题与来源去除换行、截断到 150 字符。
 - **旁路副作用**：通知失败只提示，不影响任务结果返回。
+
+---
+
+## 测试 / Testing（部署后如何验证可用）
+
+本仓库附带的测试能在**不暴露任何真实 QQ 凭据、不联网**的前提下，验证脚本能完整走通「连接 → 登录 → 发送」。这是其他用户 clone/fork 之后确认项目可用的关键手段。
+
+### 原理
+
+用一个**纯标准库**起的本地 mock SMTP 服务（端口 `8137`），让通知脚本把信"发"到本地而不是真实 QQ 服务器。测试覆盖三条路径：
+
+1. **DryRun（配置就绪校验）**：缺配置时输出缺失项并优雅退出（退出码 `2`）；配置就绪时输出 JSON 元信息（退出码 `0`）。
+2. **真实发送走通**：脚本完整执行 `connect → login → send`，mock 服务端能正确收到邮件（校验主题前缀、正文、收件人）。
+3. **缺配置优雅退出**：未提供任何 SMTP 配置时退出码 `2`，不崩溃。
+
+> 通过这条路径，任何用户只要换上**自己的** SMTP 配置（环境变量或本地 JSON），即可在真实环境发信——测试本身不依赖你的邮箱。
+
+### 本地运行
+
+```bash
+# 需要 Python 3（仅标准库，无需 pip install）
+python3 tests/test_mock_smtp.py
+# 期望输出：ALL TESTS PASSED ✅
+```
+
+### 持续集成（CI）
+
+`.github/workflows/test.yml` 会在每次 `push` 与 `pull_request` 时，在 `ubuntu-latest` 上自动运行上述测试。
+
+- **原仓库**：提交即自动验证。
+- **Fork 仓库**：在 GitHub 网页点一下 `Actions` → 启用 workflows，之后自己的提交也会自动跑测试。
+
+这样，无论是你自己还是其他贡献者，都能一眼看到"部署后项目是否仍正常工作"。
+
+### 真机自检（可选）
+
+不放心的话，发一封真实邮件验证：
+
+```bash
+# 仅校验配置（不发信）
+python3 ./scripts/task-done-notify.py --dry-run --source Agent --summary "测试"
+
+# 真正发一封到你的收件箱
+python3 ./scripts/task-done-notify.py --source Agent --summary "部署自检" --message "项目已部署可用"
+```
 
 ---
 
